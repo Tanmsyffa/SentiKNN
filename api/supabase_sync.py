@@ -62,11 +62,11 @@ def process_supabase_sync(body):
         details = error.read().decode("utf-8", errors="replace")[:300]
         if "PGRST204" in details:
             return {
-                "error": "Skema Supabase belum sesuai. Jalankan supabase/migration_20261026_sync_schema.sql di SQL Editor, lalu coba sinkronkan lagi."
+                "error": "Skema Supabase belum sesuai. Jalankan supabase/migration_20261027_relations.sql di SQL Editor, lalu coba sinkronkan lagi."
             }, 502
         if "tweets_tweet_id_key" in details:
             return {
-                "error": "Constraint unik tweet_id versi lama masih aktif. Jalankan ulang supabase/migration_20261026_sync_schema.sql di SQL Editor, lalu coba sinkronkan lagi."
+                "error": "Constraint unik tweet_id versi lama masih aktif. Jalankan ulang supabase/migration_20261027_relations.sql di SQL Editor, lalu coba sinkronkan lagi."
             }, 502
         return {"error": f"Supabase menolak batch {table}: {details}"}, 502
     except urllib.error.URLError:
