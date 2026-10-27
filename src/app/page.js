@@ -35,6 +35,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { getDatasetSummary, getStoredDataset, getStoredPipeline } from '@/lib/dataService';
+import { getPreprocessingResults } from '@/lib/largeDataStore';
 import { apiDashboard, apiEvaluate } from '@/lib/api';
 
 ChartJS.register(
@@ -86,6 +87,7 @@ export default function Dashboard() {
     precision: '-',
     recall: '-',
     f1_score: '-',
+    evaluation_mode: 'manual',
   });
 
   const refreshAllData = async () => {
@@ -127,8 +129,8 @@ export default function Dashboard() {
         pos_pct: pipe.summary.pos_pct || 0,
         neg_pct: pipe.summary.neg_pct || 0,
         net_pct: pipe.summary.net_pct || 0,
-        train_count: pipe.summary.train_count || 0,
-        test_count: pipe.summary.test_count || 0,
+        train_count: pipe.split?.train_count ?? pipe.summary.train_count ?? 0,
+        test_count: pipe.split?.test_count ?? pipe.summary.test_count ?? 0,
         date_range: pipe.summary.date_range || 'Semua Data',
       });
       if (pipe.evaluation?.status === 'evaluated' && pipe.evaluation.accuracy !== undefined) {
@@ -137,6 +139,7 @@ export default function Dashboard() {
           precision: `${pipe.evaluation.precision}%`,
           recall: `${pipe.evaluation.recall}%`,
           f1_score: `${pipe.evaluation.f1_score}%`,
+          evaluation_mode: pipe.evaluation.evaluation_mode || 'manual',
         });
       }
     }
@@ -161,8 +164,8 @@ export default function Dashboard() {
         pos_pct: summary.pos_pct || 0,
         neg_pct: summary.neg_pct || 0,
         net_pct: summary.net_pct || 0,
-        train_count: summary.train_count || summary.trainCount || 0,
-        test_count: summary.test_count || summary.testCount || 0,
+        train_count: pipe?.split?.train_count ?? summary.train_count ?? summary.trainCount ?? 0,
+        test_count: pipe?.split?.test_count ?? summary.test_count ?? summary.testCount ?? 0,
         date_range: summary.date_range || summary.dateRange || 'Semua Data',
       });
       setTrendData({
@@ -174,7 +177,25 @@ export default function Dashboard() {
         ],
       });
       setTopTopics((pipe?.tfidf?.top_terms || []).slice(0, 5).map((item) => ({ name: item.term, count: item.weight_sum })));
-      setWordCloudImage(null);
+      try {
+        const preprocessing = await getPreprocessingResults();
+        const stemmedById = new Map(preprocessing.map((item) => [String(item.tweet_id), item.stemmed_text || '']));
+        const analyticsDataset = data.map((item) => ({
+          tanggal: item.tanggal,
+          label: item.label,
+          stemmed: stemmedById.get(String(item.id)) || '',
+        }));
+        if (preprocessing.length > 0) {
+          const dash = await apiDashboard(analyticsDataset);
+          setWordCloudImage(dash.word_cloud_image || null);
+          if (dash.top_topics?.length > 0) setTopTopics(dash.top_topics);
+        } else {
+          setWordCloudImage(null);
+        }
+      } catch (error) {
+        console.warn('Word cloud tidak dapat dibuat dari hasil preprocessing:', error);
+        setWordCloudImage(null);
+      }
       return;
     }
 
@@ -231,6 +252,7 @@ export default function Dashboard() {
           precision: `${pipe.evaluation.precision}%`,
           recall: `${pipe.evaluation.recall}%`,
           f1_score: `${pipe.evaluation.f1_score}%`,
+          evaluation_mode: pipe.evaluation.evaluation_mode || 'manual',
         });
       } else {
         const labeled = data.filter((d) => d.label && d.label_source !== 'lexicon' && !d.auto_labeled);
@@ -242,6 +264,7 @@ export default function Dashboard() {
               precision: `${ev.precision}%`,
               recall: `${ev.recall}%`,
               f1_score: `${ev.f1_score}%`,
+              evaluation_mode: ev.evaluation_mode || 'manual',
             });
           }
         } else {
@@ -324,6 +347,7 @@ export default function Dashboard() {
   };
 
   const topicColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+  const evaluationIsExploratory = evaluation.evaluation_mode === 'exploratory';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -533,7 +557,9 @@ export default function Dashboard() {
         {/* Metric Cards */}
         <div className="bg-white rounded-xl p-6 shadow-card border border-slate-100">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-800">Hasil Evaluasi Model KNN (Data Uji Manual 20%)</h3>
+            <h3 className="text-sm font-semibold text-slate-800">
+              Hasil Evaluasi Model KNN ({evaluationIsExploratory ? 'Data Uji Pseudo-label 20%' : 'Data Uji Pakar 20%'})
+            </h3>
             <span className="text-xs text-slate-400 font-mono">K = 5</span>
           </div>
 
@@ -553,7 +579,7 @@ export default function Dashboard() {
                   <p className="text-xs font-medium text-slate-500 mb-1">{m.label}</p>
                   <p className="text-lg font-bold text-slate-800">{m.value}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">
-                    {hasLabels ? 'scikit-learn' : 'Belum dievaluasi'}
+                    {evaluation.accuracy !== '-' ? (evaluationIsExploratory ? 'pseudo-label' : 'ground truth pakar') : 'Belum dievaluasi'}
                   </p>
                 </div>
               );

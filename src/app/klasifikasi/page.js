@@ -67,6 +67,17 @@ export default function KlasifikasiPage() {
         const currentPipe = getStoredPipeline() || {};
         const updatedPipe = {
           ...currentPipe,
+          split: {
+            ...(currentPipe.split || {}),
+            train_count: res.train_size,
+            test_count: res.test_size,
+            evaluation_mode: res.evaluation_mode || mode,
+          },
+          summary: {
+            ...(currentPipe.summary || {}),
+            train_count: res.train_size,
+            test_count: res.test_size,
+          },
           knn: {
             k: res.k,
             evaluation_mode: mode,

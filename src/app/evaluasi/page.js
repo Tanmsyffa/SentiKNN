@@ -55,6 +55,11 @@ export default function EvaluasiPage() {
               ...(res.test_indices || []).map((index) => ({ tweet_id: labeled[index]?.id, split_type: 'test' })).filter((item) => item.tweet_id),
             ],
           },
+          summary: {
+            ...(currentPipeline.summary || {}),
+            train_count: res.train_size,
+            test_count: res.test_size,
+          },
           knn: {
             k: res.k,
             evaluation_mode: res.evaluation_mode,
